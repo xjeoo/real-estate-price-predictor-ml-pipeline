@@ -1,0 +1,1 @@
+"This directory is used for storing raw and processed data. Files are ignored by Git to protect data privacy."
