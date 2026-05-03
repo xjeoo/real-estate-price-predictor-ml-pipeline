@@ -31,6 +31,6 @@ for url in urls:
     links["links"].append(link)
 
 links_df = pd.DataFrame(links)
-path = os.path.join(cwd, 'data', 'sitemap_links.csv')
+path = os.path.join(cwd, 'data', 'raw', 'sitemap_links.csv')
 links_df.to_csv(path, index=False)
 
