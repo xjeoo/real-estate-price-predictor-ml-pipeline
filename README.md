@@ -14,7 +14,7 @@ This specific component of the ecosystem is dedicated to:
 ### Pipeline Architecture
 The system is built as a sequential pipeline to ensure data integrity and reproducibility:
 
-*   **Phase 1: Harvesting (Active)**: Extracting features such as surface area, location, building age, and price from 27k+ listings.
+*   **Phase 1: Harvesting (Active)**: Extracting features such as surface area, location, building age, and price from over 25k listings.
 *   **Phase 2: Cleaning (Planned)**: Handling missing values, outlier detection, and encoding categorical variables.
 *   **Phase 3: Training (Planned)**: Model selection, hyperparameter tuning, and validation.
 
