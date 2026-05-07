@@ -1,39 +1,27 @@
 from bs4 import BeautifulSoup
-import requests
 import pandas as pd
 import os
 import time
 import random
-from dotenv import load_dotenv
 from tqdm import tqdm # for progress bar
+from utils.scrape_utils import get_basic_details, get_price_info, get_location_info, get_specifications
+from utils.session_utils import get_new_session
 
-# O IDEE DE CE TREBUIE SCRAPEUIT:
-# [ 
-#   id, pret, zona, suprafata_utila, nr_camere, compartimentare?, an_constructie,
-#   etaj, etaj_maxim?, numar_bai, parcare, url  
-# ]
-def scrape_page(link, headers): # returns object to be saved into df
+
+def scrape_page(link, session): # returns object to be saved into df
     listing_id = link.split('-')[-1]
 
-    content = requests.get(link, headers=headers).text
+    content = session.get(link, timeout=30).text
     soup = BeautifulSoup(content, 'html.parser')
-
-    # price extraction start
-    price_box_text = soup.find('div', attrs={
-        "aria-label": "price"
-    }).text.lower()
-    price = "".join([c for c in price_box_text if c.isdigit()])
-    currency = ""
-    if "€" in price_box_text or "euro" in price_box_text or "eur" in price_box_text:
-        currency = "euro"
-    elif "ron" in price_box_text or "lei" in price_box_text:
-        currency = "ron"
-    else:
-        currency = "euro"
     
-    tva_included = False if "tva" in price_box_text and "inclus" not in price_box_text else True
-    #price extraction end
-
+    #price info
+    price, currency, tva_included = get_price_info(soup)
+    #basic details
+    numar_camere, supraf_util, etaj, etaj_max, an_constr, an_constr_status = get_basic_details(soup)
+    #location info
+    sector, neighbourhood, distance_to_subway_m = get_location_info(soup)
+    # other specs
+    layout, number_of_bathrooms, comfort_grade, has_balcony, parking_spots, heating_type = get_specifications(soup)
 
 
     #------------------
@@ -43,6 +31,21 @@ def scrape_page(link, headers): # returns object to be saved into df
         "price": price,
         "currency": currency,
         "tva_included": tva_included,
+        "sector": sector,
+        "neighbourhood": neighbourhood,
+        "distance_to_subway_meters": distance_to_subway_m,
+        "nr_of_rooms": numar_camere,
+        "usable_surface_sq_meters": supraf_util,
+        "floor": etaj,
+        "max_floor": etaj_max,
+        "construction year": an_constr,
+        "construction_status": an_constr_status,
+        "layout": layout,
+        "number_of_bathrooms": number_of_bathrooms,
+        "comfort_grade": comfort_grade,
+        "has_balcony": has_balcony,
+        "parking_spots": parking_spots,
+        "heating_type": heating_type,
         "url": link
     }
     return page_info
@@ -52,7 +55,6 @@ def scrape_page(link, headers): # returns object to be saved into df
 cwd = os.getcwd()
 links_csv_path = os.path.join(cwd, 'data', 'raw', 'sitemap_links.csv')
 output_csv_path = os.path.join(cwd, 'data', 'raw', 'raw_listings.csv')
-load_dotenv()
 
 all_links_df = pd.read_csv(links_csv_path)
 all_links = all_links_df["links"].to_list()
@@ -66,19 +68,20 @@ else:
     print("Starting from the beginning")
     links_to_scrape = all_links
 
-referer = os.getenv("REFERER")
-headers = {
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
-    'Accept-Language': 'ro-RO,ro;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/webp,*/*;q=0.8',
-    'Referer': referer
-}
+
 try:
     # main loop
-    for link in tqdm(links_to_scrape[:6]):
+    current_session = get_new_session() # create first session
+    for idx, link in enumerate(tqdm(links_to_scrape[:10])):
+        if idx > 0 and idx % 150 == 0:
+            current_session.close() # close old connection
+            print("-Rotating session at index", idx, ". Pausing 10 seconds.")
+            time.sleep(random.uniform(8.0, 15.0)) # bigger pause
+            current_session = get_new_session()
+        
         try:    
             time.sleep(random.uniform(2.2, 4.1))
-            row = scrape_page(link, headers)
+            row = scrape_page(link, current_session)
             row_df = pd.DataFrame([row])
             row_df.to_csv(output_csv_path, mode='a', index=False, header= not os.path.exists(output_csv_path))
 
@@ -89,5 +92,8 @@ try:
 except KeyboardInterrupt:
     print("\n<Script interrupted>")
 
+finally:
+    if 'current_session' in locals(): # closing last session
+        current_session.close()
 
 print("Scraping done")
