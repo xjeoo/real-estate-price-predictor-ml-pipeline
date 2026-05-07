@@ -72,7 +72,7 @@ else:
 try:
     # main loop
     current_session = get_new_session() # create first session
-    for idx, link in enumerate(tqdm(links_to_scrape[:10])):
+    for idx, link in enumerate(tqdm(links_to_scrape)):
         if idx > 0 and idx % 150 == 0:
             current_session.close() # close old connection
             print("-Rotating session at index", idx, ". Pausing 10 seconds.")

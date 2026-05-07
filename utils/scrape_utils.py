@@ -9,10 +9,15 @@ def get_price_info(soup: BeautifulSoup):
     """
     Returns [price, currency, tva_included] from a BeautifulSoup soup
     """
-    price_box_text = soup.find('div', attrs={
-        "aria-label": "price"
-    }).text.lower()
-    price = "".join([c for c in price_box_text if c.isdigit()])
+    price = None
+    price_box_elem = soup.find('div', attrs={
+            "aria-label": "price"
+        })
+    if price_box_elem:
+        price_box_text = price_box_elem.text.lower()
+        if "preț vechi" in price_box_text:
+            price_box_text = price_box_text.split('preț vechi')[0]
+        price = "".join([c for c in price_box_text if c.isdigit()])
     currency = ""
     if "€" in price_box_text or "euro" in price_box_text or "eur" in price_box_text:
         currency = "euro"
