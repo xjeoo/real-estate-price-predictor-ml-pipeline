@@ -55,15 +55,23 @@ def scrape_page(link, session): # returns object to be saved into df
 cwd = os.getcwd()
 links_csv_path = os.path.join(cwd, 'data', 'raw', 'sitemap_links.csv')
 output_csv_path = os.path.join(cwd, 'data', 'raw', 'raw_listings.csv')
+failed_link_csv_path = os.path.join(cwd, 'data', 'raw', 'failed_links.csv')
+
 
 all_links_df = pd.read_csv(links_csv_path)
 all_links = all_links_df["links"].to_list()
+
+failed_links_set = set()
+if os.path.exists(failed_link_csv_path):
+    failed_link_df = pd.read_csv(failed_link_csv_path)
+    failed_links = failed_link_df["link"].to_list()
+    failed_links_set = set(failed_links)
 links_to_scrape = []
 if os.path.exists(output_csv_path):
     print("Resuming scrape")
     output_df = pd.read_csv(output_csv_path)
     done_links = set(output_df["url"].to_list())
-    links_to_scrape = [link for link in all_links if link not in done_links]
+    links_to_scrape = [link for link in all_links if link not in done_links and link not in failed_links_set]
 else:
     print("Starting from the beginning")
     links_to_scrape = all_links
@@ -87,7 +95,14 @@ try:
 
         except Exception as err:
             print("Scraping failed at link: ", link)
+            print("Adding link to failed links.")
             print("Error details: ", err)
+            failed_link = {
+                "link": link,
+                "error_details": str(err)
+            }
+            failed_link_df = pd.DataFrame([failed_link])
+            failed_link_df.to_csv(failed_link_csv_path, mode='a', index=False, header= not os.path.exists(failed_link_csv_path))
 
 except KeyboardInterrupt:
     print("\n<Script interrupted>")
