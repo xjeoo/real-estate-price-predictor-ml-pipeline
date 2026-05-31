@@ -50,65 +50,79 @@ def scrape_page(link, session): # returns object to be saved into df
     }
     return page_info
 
-#------- end of function definitions ------------------------------
-
-cwd = os.getcwd()
-links_csv_path = os.path.join(cwd, 'data', 'raw', 'sitemap_links.csv')
-output_csv_path = os.path.join(cwd, 'data', 'raw', 'raw_listings.csv')
-failed_link_csv_path = os.path.join(cwd, 'data', 'raw', 'failed_links.csv')
 
 
-all_links_df = pd.read_csv(links_csv_path)
-all_links = all_links_df["links"].to_list()
+# ==========================================
+# MAIN FUNCTION
+# ==========================================
 
-failed_links_set = set()
-if os.path.exists(failed_link_csv_path):
-    failed_link_df = pd.read_csv(failed_link_csv_path)
-    failed_links = failed_link_df["link"].to_list()
-    failed_links_set = set(failed_links)
-links_to_scrape = []
-if os.path.exists(output_csv_path):
-    print("Resuming scrape")
-    output_df = pd.read_csv(output_csv_path)
-    done_links = set(output_df["url"].to_list())
-    links_to_scrape = [link for link in all_links if link not in done_links and link not in failed_links_set]
-else:
-    print("Starting from the beginning")
-    links_to_scrape = all_links
+def run_harvester(links_csv_path: str, output_csv_path: str, failed_link_csv_path: str):
+    """Manage the link queue, session rotation, and incremental saving."""
+
+    all_links_df = pd.read_csv(links_csv_path)
+    all_links = all_links_df["links"].to_list()
+
+    failed_links_set = set()
+    if os.path.exists(failed_link_csv_path):
+        failed_link_df = pd.read_csv(failed_link_csv_path)
+        failed_links = failed_link_df["link"].to_list()
+        failed_links_set = set(failed_links)
+    links_to_scrape = []
+    if os.path.exists(output_csv_path):
+        print("Resuming scrape")
+        output_df = pd.read_csv(output_csv_path)
+        done_links = set(output_df["url"].to_list())
+        links_to_scrape = [link for link in all_links if link not in done_links and link not in failed_links_set]
+    else:
+        print("Starting from the beginning")
+        links_to_scrape = all_links
 
 
-try:
-    # main loop
-    current_session = get_new_session() # create first session
-    for idx, link in enumerate(tqdm(links_to_scrape)):
-        if idx > 0 and idx % 150 == 0:
-            current_session.close() # close old connection
-            print("-Rotating session at index", idx, ". Pausing 10 seconds.")
-            time.sleep(random.uniform(8.0, 15.0)) # bigger pause
-            current_session = get_new_session()
-        
-        try:    
-            time.sleep(random.uniform(2.2, 4.1))
-            row = scrape_page(link, current_session)
-            row_df = pd.DataFrame([row])
-            row_df.to_csv(output_csv_path, mode='a', index=False, header= not os.path.exists(output_csv_path))
+    try:
+        # main loop
+        current_session = get_new_session() # create first session
+        for idx, link in enumerate(tqdm(links_to_scrape)):
+            if idx > 0 and idx % 150 == 0:
+                current_session.close() # close old connection
+                print("-Rotating session at index", idx, ". Pausing 10 seconds.")
+                time.sleep(random.uniform(8.0, 15.0)) # bigger pause
+                current_session = get_new_session()
+            
+            try:    
+                time.sleep(random.uniform(2.2, 4.1))
+                row = scrape_page(link, current_session)
+                row_df = pd.DataFrame([row])
+                row_df.to_csv(output_csv_path, mode='a', index=False, header= not os.path.exists(output_csv_path))
 
-        except Exception as err:
-            print("Scraping failed at link: ", link)
-            print("Adding link to failed links.")
-            print("Error details: ", err)
-            failed_link = {
-                "link": link,
-                "error_details": str(err)
-            }
-            failed_link_df = pd.DataFrame([failed_link])
-            failed_link_df.to_csv(failed_link_csv_path, mode='a', index=False, header= not os.path.exists(failed_link_csv_path))
+            except Exception as err:
+                print("Scraping failed at link: ", link)
+                print("Adding link to failed links.")
+                print("Error details: ", err)
+                failed_link = {
+                    "link": link,
+                    "error_details": str(err)
+                }
+                failed_link_df = pd.DataFrame([failed_link])
+                failed_link_df.to_csv(failed_link_csv_path, mode='a', index=False, header= not os.path.exists(failed_link_csv_path))
 
-except KeyboardInterrupt:
-    print("\n<Script interrupted>")
+    except KeyboardInterrupt:
+        print("\n<Script interrupted>")
 
-finally:
-    if 'current_session' in locals(): # closing last session
-        current_session.close()
+    finally:
+        if 'current_session' in locals(): # closing last session
+            current_session.close()
 
-print("Scraping done")
+    print("Scraping done")
+
+# ==========================================
+# ENTRY POINT
+# ==========================================
+
+if __name__ == "__main__":
+    cwd = os.getcwd()
+    LINKS_PATH = os.path.join(cwd, 'data', 'raw', 'sitemap_links.csv')
+    OUTPUT_PATH = os.path.join(cwd, 'data', 'raw', 'raw_listings.csv')
+    FAILED_PATH = os.path.join(cwd, 'data', 'raw', 'failed_links.csv')
+
+    print("Starting scraping process...")
+    run_harvester(LINKS_PATH, OUTPUT_PATH, FAILED_PATH)
